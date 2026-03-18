@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.cache/
+.DS_Store
+
+data/
+artifacts/
+models/
+
+frontend/node_modules/
+frontend/.next/
+
+.env
+.env.*
