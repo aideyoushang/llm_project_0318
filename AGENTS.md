@@ -57,10 +57,11 @@
 - 操作说明与最小可演示界面（CLI / Gradio / API）
 
 ## 当前阶段约束
-- 先给“项目总路线图 + 第一阶段最小可执行任务清单”，不要一口气做完整项目。
+- 跳过 MVP 版本，直接按完整 RAG 方案实现与联调。
 
 ## 用户已确认的偏好与范围
 - RAG：希望问题覆盖面较广，回答尽量带引用证据（可追溯到具体评论片段）。
+- RAG 方案：查询理解与增强、混合检索融合（BM25/向量/Reverse Query/HyDE/Summary + 加权 RRF）、多因子重排、严格引用与 SSE 流式生成。
 - 数据：优先使用 tripadvisor_dataset 全量数据；仅做英文评论。
 - 数据落盘（云服务器）：Parquet 分片，目录 data/raw/tripadvisor，行数 201295，文件 part-00000.parquet、part-00001.parquet。
 - 数据字段（云端落盘版本）：hotel_id、user_id、title、text、overall、cleanliness、value、location、rooms、sleep_quality、stay_year、post_date、freq、review、char、lang。
