@@ -164,12 +164,27 @@ class IntentModule:
         t = text.strip()
         if not t:
             return None
-        if t.startswith("```"):
-            t = t.strip("`").strip()
+        if "```" in t:
+            parts = t.split("```")
+            if len(parts) >= 3:
+                fenced = parts[1].strip()
+                lines = fenced.splitlines()
+                if lines and lines[0].strip().lower() in {"json", "jsonc"}:
+                    lines = lines[1:]
+                t = "\n".join(lines).strip()
         try:
             obj = json.loads(t)
             if isinstance(obj, dict):
                 return obj
+        except Exception:
+            pass
+        try:
+            start = t.find("{")
+            end = t.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                obj = json.loads(t[start : end + 1])
+                if isinstance(obj, dict):
+                    return obj
         except Exception:
             pass
         m = re.search(r"\{[\s\S]*\}", t)
