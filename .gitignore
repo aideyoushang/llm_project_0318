@@ -12,3 +12,5 @@ frontend/.next/
 
 .env
 .env.*
+
+rag-service/config.local.json

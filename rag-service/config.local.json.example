@@ -1,0 +1,8 @@
+{
+  "ark_base_url": "https://ark.cn-beijing.volces.com/api/v3/responses",
+  "ark_api_key": "",
+  "ark_model": "doubao-seed-2-0-lite-260215",
+  "intent_mode": "ark",
+  "enable_hyde": true
+}
+

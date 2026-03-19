@@ -9,6 +9,9 @@ from heapq import nlargest
 from pathlib import Path
 from typing import Any
 
+from rag_service.modules.ark_llm import ArkResponsesClient
+from rag_service.modules.runtime_config import load_runtime_config
+
 
 @dataclass(frozen=True)
 class RetrievedItem:
@@ -29,6 +32,7 @@ class RetrieverModule:
         self._summary_index = None
         self._summary_meta: list[dict[str, Any]] | None = None
         self._encoder = None
+        self._llm = ArkResponsesClient()
 
     def retrieve(self, question: str, intent: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         self._ensure_loaded()
@@ -73,6 +77,11 @@ class RetrieverModule:
             add_ranked(self._retrieve_vector(q, top_k=30), route_weight=1.2, query_weight=q_weight)
             add_ranked(self._retrieve_summary(q, top_k=6), route_weight=0.6, query_weight=q_weight)
 
+        if self._use_hyde(intent):
+            hyde_doc = self._build_hyde_doc(question, intent)
+            if hyde_doc:
+                add_ranked(self._retrieve_vector_with_source(hyde_doc, top_k=30, source="hyde"), route_weight=1.3, query_weight=1.0)
+
         top = nlargest(8, fused.items(), key=lambda kv: float(kv[1]["score"]))
         out: list[dict[str, Any]] = []
         for _, payload in top:
@@ -85,6 +94,40 @@ class RetrieverModule:
                 }
             )
         return out
+
+    def _use_hyde(self, intent: dict[str, Any]) -> bool:
+        flag = str(intent.get("enable_hyde") or "").strip().lower()
+        if flag in {"0", "false", "no"}:
+            return False
+        if flag in {"1", "true", "yes"}:
+            return self._llm.is_configured()
+        cfg = load_runtime_config()
+        if cfg.enable_hyde is True:
+            return self._llm.is_configured()
+        return False
+
+    def _build_hyde_doc(self, question: str, intent: dict[str, Any]) -> str:
+        constraints = intent.get("constraints") if isinstance(intent.get("constraints"), dict) else {}
+        recency_level = str((constraints or {}).get("recency_level") or "none")
+        rating_fields = (constraints or {}).get("rating_fields") or []
+        if not isinstance(rating_fields, list):
+            rating_fields = []
+        aspects = ", ".join([str(x) for x in rating_fields[:3] if isinstance(x, str)])
+        prompt_parts = [
+            "Write a plausible hotel review excerpt that would help answer the user's question.",
+            "Output plain text only, no JSON, no bullet points.",
+            "Keep it between 120 and 220 words.",
+        ]
+        if aspects:
+            prompt_parts.append(f"Focus on aspects: {aspects}.")
+        if recency_level in {"clear", "implied"}:
+            prompt_parts.append("Prefer recent stays and mention recency briefly.")
+        prompt_parts.append(f"User question: {question}")
+        prompt = "\n".join(prompt_parts)
+        try:
+            return self._llm.response_text(prompt, timeout_s=30.0)
+        except Exception:
+            return ""
 
     def _project_root(self) -> Path:
         return Path(__file__).resolve().parents[3]
@@ -244,6 +287,17 @@ class RetrieverModule:
             meta["source"] = "vector"
             meta["vector_score"] = float(distances[0][rank - 1])
             out.append(RetrievedItem(key=key, text=chunk_text, metadata=meta, source="vector", rank=rank))
+        return out
+
+    def _retrieve_vector_with_source(self, query: str, top_k: int, source: str) -> list[RetrievedItem]:
+        items = self._retrieve_vector(query, top_k=top_k)
+        if source == "vector":
+            return items
+        out: list[RetrievedItem] = []
+        for it in items:
+            meta = dict(it.metadata)
+            meta["source"] = source
+            out.append(RetrievedItem(key=it.key, text=it.text, metadata=meta, source=source, rank=it.rank))
         return out
 
     def _retrieve_summary(self, query: str, top_k: int) -> list[RetrievedItem]:

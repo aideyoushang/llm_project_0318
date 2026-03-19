@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
+from rag_service.modules.ark_llm import ArkResponsesClient
+from rag_service.modules.runtime_config import load_runtime_config
+
 
 class IntentModule:
+    def __init__(self) -> None:
+        self._llm = ArkResponsesClient()
+
     def classify(self, question: str) -> dict[str, Any]:
         q = question.strip()
         q_lower = q.lower()
+
+        if self._use_llm_intent():
+            llm_result = self._classify_with_llm(q)
+            if llm_result is not None:
+                return llm_result
 
         intent_type = "domain_qa"
         use_retrieval = True
@@ -32,6 +44,111 @@ class IntentModule:
             "constraints": constraints,
             "subqueries": subqueries,
         }
+
+    def _use_llm_intent(self) -> bool:
+        mode = (load_runtime_config().intent_mode or "").strip().lower()
+        if mode in {"llm", "ark"}:
+            return self._llm.is_configured()
+        return False
+
+    def _classify_with_llm(self, question: str) -> dict[str, Any] | None:
+        allowed_fields = ["overall", "cleanliness", "value", "location", "rooms", "sleep_quality"]
+        user_prompt = "\n".join(
+            [
+                "You are a query understanding module for hotel review RAG.",
+                "Return ONLY valid minified JSON with this schema:",
+                "{"
+                '"use_retrieval": boolean,'
+                '"intent_type": "chat"|"domain_qa"|"analytics",'
+                '"query": string,'
+                '"constraints": {"recency_level":"clear"|"implied"|"none","rating_fields": string[]},'
+                '"subqueries": [{"q": string, "weight": number, "type": string}]'
+                "}",
+                f"Allowed rating_fields values: {allowed_fields}",
+                "Rules:",
+                "- If user is greeting/chitchat, set use_retrieval=false and intent_type=chat.",
+                "- Otherwise use_retrieval=true and intent_type=domain_qa.",
+                "- subqueries must be 1 to 3 items, weights in (0,1].",
+                f"User question: {question}",
+            ]
+        )
+        try:
+            text = self._llm.response_text(user_prompt, timeout_s=30.0)
+        except Exception:
+            return None
+        payload = self._try_parse_json(text)
+        if payload is None:
+            return None
+        try:
+            use_retrieval = bool(payload.get("use_retrieval"))
+            intent_type = str(payload.get("intent_type") or "domain_qa")
+            constraints_obj = payload.get("constraints")
+            constraints: dict[str, Any] = constraints_obj if isinstance(constraints_obj, dict) else {}
+            recency_level = str(constraints.get("recency_level") or "none")
+            rating_fields_raw = constraints.get("rating_fields") or []
+            if not isinstance(rating_fields_raw, list):
+                rating_fields_raw = []
+            rating_fields: list[str] = []
+            for f in rating_fields_raw:
+                if isinstance(f, str) and f in allowed_fields:
+                    rating_fields.append(f)
+            if not rating_fields:
+                rating_fields = ["overall"]
+
+            subqueries_raw = payload.get("subqueries") or []
+            subqueries: list[dict[str, Any]] = []
+            if isinstance(subqueries_raw, list):
+                for item in subqueries_raw:
+                    if not isinstance(item, dict):
+                        continue
+                    q = str(item.get("q") or "").strip()
+                    if not q:
+                        continue
+                    try:
+                        w = float(item.get("weight") or 1.0)
+                    except Exception:
+                        w = 1.0
+                    if w <= 0:
+                        continue
+                    if w > 1:
+                        w = 1.0
+                    subqueries.append({"q": q, "weight": w, "type": str(item.get("type") or "llm")})
+            if not subqueries:
+                subqueries = [{"q": question, "weight": 1.0, "type": "original"}]
+            subqueries = subqueries[:3]
+
+            return {
+                "use_retrieval": use_retrieval,
+                "intent_type": intent_type,
+                "query": question,
+                "constraints": {"recency_level": recency_level, "rating_fields": rating_fields},
+                "subqueries": subqueries,
+            }
+        except Exception:
+            return None
+
+    def _try_parse_json(self, text: str) -> dict[str, Any] | None:
+        t = text.strip()
+        if not t:
+            return None
+        if t.startswith("```"):
+            t = t.strip("`").strip()
+        try:
+            obj = json.loads(t)
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+        m = re.search(r"\{[\s\S]*\}", t)
+        if not m:
+            return None
+        try:
+            obj = json.loads(m.group(0))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            return None
+        return None
 
     def _is_smalltalk(self, q_lower: str) -> bool:
         greetings = [

@@ -74,6 +74,19 @@
 ## 调试技巧
 - intent_only：在请求体中加入 `"intent_only": true` 可只返回 intent（不跑检索/重排/生成），用于排查“首轮检索加载很慢导致 curl 卡住”的情况。
 
+## 方案B：外部 LLM 接入（用于方案1+4）
+- 接口：Volcengine Ark Responses API（/api/v3/responses）
+- 环境变量 ARK_API_KEY：外部平台 API Key（只配置在云端环境变量中，不写入仓库）
+- 环境变量 ARK_MODEL：如 doubao-seed-2-0-lite-260215
+- 环境变量 ARK_BASE_URL：默认 https://ark.cn-beijing.volces.com/api/v3/responses
+- 开关 INTENT_MODE=ark：启用 LLM 结构化 intent（失败自动回退规则版）
+- 开关 ENABLE_HYDE=1：启用 HyDE 作为额外向量检索路由
+
+## 配置文件（推荐）
+- 文件：rag-service/config.local.json（已加入 .gitignore，不会进入版本库）
+- 示例：rag-service/config.local.json.example
+- 覆盖规则：环境变量优先级高于配置文件（便于临时切换）
+
 ## 已完成关键步骤（复盘用）
 - 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）
 - 分片文本：通过 build_chunks.py 生成 data/rag/chunks.parquet（切分参数：max_chars 1400，overlap 200，min_chars 120）
