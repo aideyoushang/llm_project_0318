@@ -17,8 +17,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lang", default="en")
     parser.add_argument(
         "--group-by",
-        choices=["hotel_id", "overall_bucket", "aspect"],
-        default="hotel_id",
+        choices=["hotel_id", "overall_bucket", "aspect", "rating_bucket"],
+        default="rating_bucket",
+    )
+    parser.add_argument(
+        "--rating-fields",
+        default="overall,cleanliness,value,location,rooms,sleep_quality",
+    )
+    parser.add_argument(
+        "--bucket-scheme",
+        choices=["low_mid_high", "1_2_3_4_5"],
+        default="low_mid_high",
     )
     parser.add_argument("--max-reviews-per-group", type=int, default=20)
     parser.add_argument("--max-chars", type=int, default=4000)
@@ -69,6 +78,8 @@ def build_summary(reviews: list[str], max_chars: int) -> str:
     size = 0
     for review in reviews:
         if size + len(review) + 1 > max_chars:
+            if not buf and max_chars > 0:
+                buf.append(review[:max_chars])
             break
         buf.append(review)
         size += len(review) + 1
@@ -102,7 +113,26 @@ def main() -> None:
         "skipped_empty_review": 0,
     }
 
-    aspect_fields = ["cleanliness", "value", "location", "rooms", "sleep_quality"]
+    rating_fields = [x.strip() for x in str(args.rating_fields).split(",") if x.strip()]
+    if not rating_fields:
+        rating_fields = ["overall"]
+
+    def bucket_score(value: Any) -> str | None:
+        if value is None:
+            return None
+        try:
+            v = float(value)
+        except Exception:
+            return None
+        if args.bucket_scheme == "1_2_3_4_5":
+            b = int(round(v))
+            b = max(1, min(5, b))
+            return str(b)
+        if v >= 4:
+            return "high"
+        if v <= 2:
+            return "low"
+        return "mid"
 
     for batch in iter_batches(input_dir, args.batch_size):
         rows = len(next(iter(batch.values()))) if batch else 0
@@ -137,29 +167,27 @@ def main() -> None:
 
             if args.group_by == "overall_bucket":
                 overall = batch.get("overall", [None])[i]
-                if overall is None:
+                bucket = bucket_score(overall)
+                if bucket is None:
                     continue
-                try:
-                    bucket = int(round(float(overall)))
-                except Exception:
-                    continue
-                bucket = max(1, min(5, bucket))
                 add_to_group(f"overall_{bucket}")
                 continue
 
             if args.group_by == "aspect":
-                for field in aspect_fields:
+                for field in [f for f in rating_fields if f != "overall"]:
                     v = batch.get(field, [None])[i]
-                    if v is None:
+                    bucket = bucket_score(v)
+                    if bucket is None:
                         continue
-                    try:
-                        fv = float(v)
-                    except Exception:
+                    add_to_group(f"{field}_{bucket}")
+                continue
+            if args.group_by == "rating_bucket":
+                for field in rating_fields:
+                    v = batch.get(field, [None])[i]
+                    bucket = bucket_score(v)
+                    if bucket is None:
                         continue
-                    if fv >= 4:
-                        add_to_group(f"{field}_high")
-                    elif fv <= 2:
-                        add_to_group(f"{field}_low")
+                    add_to_group(f"{field}_{bucket}")
                 continue
 
     rows: list[dict[str, Any]] = []
@@ -221,6 +249,8 @@ def main() -> None:
         "total_docs": len(rows),
         "lang": args.lang,
         "group_by": args.group_by,
+        "rating_fields": rating_fields,
+        "bucket_scheme": args.bucket_scheme,
         "max_reviews_per_group": args.max_reviews_per_group,
         "stats": {
             "seen_rows": int(counters["seen_rows"]),
