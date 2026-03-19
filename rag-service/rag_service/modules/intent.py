@@ -16,34 +16,18 @@ class IntentModule:
         q = question.strip()
         q_lower = q.lower()
 
-        if self._use_llm_intent():
+        use_llm = self._use_llm_intent()
+        if use_llm:
             llm_result = self._classify_with_llm(q)
             if llm_result is not None:
+                llm_result["intent_source"] = "ark"
                 return llm_result
 
-        intent_type = "domain_qa"
-        use_retrieval = True
-
-        if self._is_smalltalk(q_lower):
-            intent_type = "chat"
-            use_retrieval = False
-
-        recency_level = self._detect_recency_level(q_lower)
-        rating_fields = self._detect_rating_fields(q_lower)
-        constraints = {
-            "recency_level": recency_level,
-            "rating_fields": rating_fields,
-        }
-
-        subqueries = self._expand_queries(q, rating_fields, recency_level)
-
-        return {
-            "use_retrieval": use_retrieval,
-            "intent_type": intent_type,
-            "query": q,
-            "constraints": constraints,
-            "subqueries": subqueries,
-        }
+        rule_result = self._classify_with_rules(q, q_lower)
+        rule_result["intent_source"] = "rule"
+        if use_llm:
+            rule_result["intent_fallback"] = "ark_failed"
+        return rule_result
 
     def _use_llm_intent(self) -> bool:
         mode = (load_runtime_config().intent_mode or "").strip().lower()
@@ -126,6 +110,31 @@ class IntentModule:
             }
         except Exception:
             return None
+
+    def _classify_with_rules(self, q: str, q_lower: str) -> dict[str, Any]:
+        intent_type = "domain_qa"
+        use_retrieval = True
+
+        if self._is_smalltalk(q_lower):
+            intent_type = "chat"
+            use_retrieval = False
+
+        recency_level = self._detect_recency_level(q_lower)
+        rating_fields = self._detect_rating_fields(q_lower)
+        constraints = {
+            "recency_level": recency_level,
+            "rating_fields": rating_fields,
+        }
+
+        subqueries = self._expand_queries(q, rating_fields, recency_level)
+
+        return {
+            "use_retrieval": use_retrieval,
+            "intent_type": intent_type,
+            "query": q,
+            "constraints": constraints,
+            "subqueries": subqueries,
+        }
 
     def _try_parse_json(self, text: str) -> dict[str, Any] | None:
         t = text.strip()
