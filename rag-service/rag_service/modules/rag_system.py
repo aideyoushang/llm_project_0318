@@ -18,17 +18,16 @@ class RagSystem:
     def chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         question = str(payload.get("question") or "").strip()
         if not question:
-            return {"answer": "", "references": [], "intent": "empty"}
+            return {"answer": "", "references": [], "intent": {"intent_type": "empty", "use_retrieval": False}}
 
         intent = self.intent.classify(question)
         contexts = []
         references = []
         if intent.get("use_retrieval", True):
-            candidates = self.retriever.retrieve(question)
+            candidates = self.retriever.retrieve(question, intent=intent)
             ranked = self.ranker.rerank(question, candidates)
             contexts = [c.get("text", "") for c in ranked]
             references = [c.get("metadata", {}) for c in ranked]
 
         answer = self.generator.generate(question=question, contexts=contexts)
         return {"answer": answer, "references": references, "intent": intent}
-
