@@ -63,13 +63,16 @@
 - 已完成：生成 chunks.parquet（lang 为空，max_chars 1400，overlap 200，min_chars 120）
 - 已完成：完成 BM25 与向量索引离线构建（artifacts/bm25、artifacts/vector）
 - 已完成：生成 Summary 索引（评分类型 × 三档分桶，total_docs=18，kept_reviews=3600）
-- 待办：实现查询理解模块并联通后端
-- 待办：实现混合检索与 RRF 融合（含 HyDE/Reverse Query）
+- 已完成：实现查询理解模块并联通后端（/api/v1/chat 透传 intent，可 curl 验证）
+- 已完成：实现混合检索与加权 RRF 融合（基础版：BM25/向量/Summary；当前主要命中 BM25）
 - 待办：实现重排与严格引用生成（含 SSE）
 - 待办：前端 QA 对接 SSE 引用展示
 
 ## 服务启动注意事项
 - rag-service 启动：推荐在 /root/csw_test 下运行 `python -m uvicorn main:app --app-dir rag-service --host 0.0.0.0 --port 8000`，避免模块名包含连字符导致导入异常。
+ 
+## 调试技巧
+- intent_only：在请求体中加入 `"intent_only": true` 可只返回 intent（不跑检索/重排/生成），用于排查“首轮检索加载很慢导致 curl 卡住”的情况。
 
 ## 已完成关键步骤（复盘用）
 - 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）

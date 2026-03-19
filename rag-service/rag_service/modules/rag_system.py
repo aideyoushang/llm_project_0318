@@ -21,6 +21,8 @@ class RagSystem:
             return {"answer": "", "references": [], "intent": {"intent_type": "empty", "use_retrieval": False}}
 
         intent = self.intent.classify(question)
+        if bool(payload.get("intent_only")):
+            return {"answer": "", "references": [], "intent": intent}
         contexts = []
         references = []
         if intent.get("use_retrieval", True):
