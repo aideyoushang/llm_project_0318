@@ -28,7 +28,7 @@ class IntentModule:
 
         use_llm = self._use_llm_intent()
         if use_llm:
-            llm_result = self._classify_with_llm(q)
+            llm_result, llm_err = self._classify_with_llm(q)
             if llm_result is not None:
                 llm_result["intent_source"] = "ark"
                 return llm_result
@@ -37,6 +37,8 @@ class IntentModule:
         rule_result["intent_source"] = "rule"
         if use_llm:
             rule_result["intent_fallback"] = "ark_failed"
+            if llm_err:
+                rule_result["intent_fallback_detail"] = llm_err
         return rule_result
 
     def _use_llm_intent(self) -> bool:
@@ -45,7 +47,7 @@ class IntentModule:
             return self._llm.is_configured()
         return False
 
-    def _classify_with_llm(self, question: str) -> dict[str, Any] | None:
+    def _classify_with_llm(self, question: str) -> tuple[dict[str, Any] | None, str | None]:
         allowed_fields = ["overall", "cleanliness", "value", "location", "rooms", "sleep_quality"]
         is_zh = self._looks_like_chinese(question)
         user_prompt = "\n".join(
@@ -73,11 +75,15 @@ class IntentModule:
         )
         try:
             text = self._llm.response_text(user_prompt, timeout_s=30.0)
-        except Exception:
-            return None
+        except Exception as e:
+            msg = str(e)
+            msg = msg.replace("\n", " ").strip()
+            if len(msg) > 300:
+                msg = msg[:300]
+            return None, msg
         payload = self._try_parse_json(text)
         if payload is None:
-            return None
+            return None, "Ark response is not valid JSON"
         try:
             use_retrieval = bool(payload.get("use_retrieval"))
             intent_type = str(payload.get("intent_type") or "domain_qa")
@@ -122,9 +128,12 @@ class IntentModule:
                 "query": question,
                 "constraints": {"recency_level": recency_level, "rating_fields": rating_fields},
                 "subqueries": subqueries,
-            }
-        except Exception:
-            return None
+            }, None
+        except Exception as e:
+            msg = str(e).replace("\n", " ").strip()
+            if len(msg) > 300:
+                msg = msg[:300]
+            return None, msg
 
     def _classify_with_rules(self, q: str, q_lower: str) -> dict[str, Any]:
         intent_type = "domain_qa"

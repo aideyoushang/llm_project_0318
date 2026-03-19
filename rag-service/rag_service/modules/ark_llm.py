@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import ssl
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -58,8 +59,18 @@ class ArkResponsesClient:
             },
         )
         ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, timeout=timeout_s, context=ctx) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s, context=ctx) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            raise RuntimeError(f"Ark HTTPError status={e.code} body={body[:300]}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Ark URLError reason={getattr(e, 'reason', e)}") from e
         obj = json.loads(raw)
         text = self._extract_text(obj)
         return text.strip()
