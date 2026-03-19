@@ -68,6 +68,9 @@
 - 待办：实现重排与严格引用生成（含 SSE）
 - 待办：前端 QA 对接 SSE 引用展示
 
+## 服务启动注意事项
+- rag-service 启动：推荐在 /root/csw_test 下运行 `python -m uvicorn main:app --app-dir rag-service --host 0.0.0.0 --port 8000`，避免模块名包含连字符导致导入异常。
+
 ## 已完成关键步骤（复盘用）
 - 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）
 - 分片文本：通过 build_chunks.py 生成 data/rag/chunks.parquet（切分参数：max_chars 1400，overlap 200，min_chars 120）

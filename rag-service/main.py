@@ -7,8 +7,11 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = PROJECT_ROOT / "src"
+SERVICE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SERVICE_DIR.parent
+
+sys.path.insert(0, SERVICE_DIR.as_posix())
+SRC_DIR = REPO_ROOT / "src"
 if SRC_DIR.exists():
     sys.path.insert(0, SRC_DIR.as_posix())
 
@@ -45,4 +48,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
