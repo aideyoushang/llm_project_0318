@@ -59,6 +59,21 @@
 ## 当前阶段约束
 - 跳过 MVP 版本，直接按完整 RAG 方案实现与联调。
 
+## 当前规划与 Todo
+- 已完成：生成 chunks.parquet（lang 为空，max_chars 1400，overlap 200，min_chars 120）
+- 已完成：完成 BM25 与向量索引离线构建（artifacts/bm25、artifacts/vector）
+- 进行中：生成 hotel_id 摘要与摘要向量索引（build_hotel_summaries.py，lang 需兼容 __label__en）
+- 待办：实现查询理解模块并联通后端
+- 待办：实现混合检索与 RRF 融合（含 HyDE/Reverse Query）
+- 待办：实现重排与严格引用生成（含 SSE）
+- 待办：前端 QA 对接 SSE 引用展示
+
+## 已完成关键步骤（复盘用）
+- 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）
+- 分片文本：通过 build_chunks.py 生成 data/rag/chunks.parquet（切分参数：max_chars 1400，overlap 200，min_chars 120）
+- 稀疏检索：通过 build_bm25.py 生成 BM25 索引到 artifacts/bm25（bm25.pkl + doc_meta.jsonl）
+- 稠密检索：通过 build_vector_index.py 生成向量索引到 artifacts/vector（index.faiss + doc_meta.jsonl）
+
 ## 用户已确认的偏好与范围
 - RAG：希望问题覆盖面较广，回答尽量带引用证据（可追溯到具体评论片段）。
 - RAG 方案：查询理解与增强、混合检索融合（BM25/向量/Reverse Query/HyDE/Summary + 加权 RRF）、多因子重排、严格引用与 SSE 流式生成。

@@ -14,6 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-path", default="data/rag/hotel_summaries.parquet")
     parser.add_argument("--output-index-dir", default="artifacts/summary_vector")
     parser.add_argument("--model", default="BAAI/bge-base-en-v1.5")
+    parser.add_argument("--lang", default="en")
     parser.add_argument("--max-reviews-per-hotel", type=int, default=20)
     parser.add_argument("--max-chars", type=int, default=4000)
     parser.add_argument("--batch-size", type=int, default=2000)
@@ -44,6 +45,17 @@ def normalize_review(title: Any, text: Any, review: Any) -> str:
     if isinstance(text, str) and text.strip():
         parts.append(text.strip())
     return "\n".join(parts)
+
+
+def normalize_lang(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        v = value.strip()
+        if v.startswith("__label__"):
+            return v.replace("__label__", "")
+        return v
+    return str(value)
 
 
 def build_summary(reviews: list[str], max_chars: int) -> str:
@@ -78,25 +90,36 @@ def main() -> None:
 
     hotel_reviews: dict[str, list[str]] = defaultdict(list)
     hotel_stats: dict[str, dict[str, Any]] = defaultdict(dict)
+    counters = {
+        "seen_rows": 0,
+        "kept_reviews": 0,
+        "skipped_lang": 0,
+        "skipped_empty_review": 0,
+    }
 
     for batch in iter_batches(input_dir, args.batch_size):
         rows = len(next(iter(batch.values()))) if batch else 0
         for i in range(rows):
-            if batch.get("lang") and batch["lang"][i] not in (None, "en"):
+            counters["seen_rows"] += 1
+            record_lang = normalize_lang(batch.get("lang", [None])[i])
+            if args.lang and record_lang not in (None, args.lang):
+                counters["skipped_lang"] += 1
                 continue
             hotel_id = str(batch["hotel_id"][i])
             review = normalize_review(batch.get("title", [None])[i], batch.get("text", [None])[i], batch.get("review", [None])[i])
             if not review:
+                counters["skipped_empty_review"] += 1
                 continue
             hotel_reviews[hotel_id].append(review)
+            counters["kept_reviews"] += 1
             if "overall" in batch:
                 overall = batch["overall"][i]
                 if overall is not None:
-                    stats = hotel_stats[hotel_id]
-                    stats.setdefault("overall_sum", 0.0)
-                    stats.setdefault("overall_cnt", 0)
-                    stats["overall_sum"] += float(overall)
-                    stats["overall_cnt"] += 1
+                    hotel_stat = hotel_stats[hotel_id]
+                    hotel_stat.setdefault("overall_sum", 0.0)
+                    hotel_stat.setdefault("overall_cnt", 0)
+                    hotel_stat["overall_sum"] += float(overall)
+                    hotel_stat["overall_cnt"] += 1
 
     rows: list[dict[str, Any]] = []
     for hotel_id, reviews in hotel_reviews.items():
@@ -155,10 +178,17 @@ def main() -> None:
         "output_index_dir": output_index_dir.as_posix(),
         "model": args.model,
         "total_docs": len(rows),
+        "lang": args.lang,
+        "stats": {
+            "seen_rows": int(counters["seen_rows"]),
+            "kept_reviews": int(counters["kept_reviews"]),
+            "skipped_lang": int(counters["skipped_lang"]),
+            "skipped_empty_review": int(counters["skipped_empty_review"]),
+            "unique_hotels": int(len(rows)),
+        },
     }
     (output_index_dir / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
     main()
-

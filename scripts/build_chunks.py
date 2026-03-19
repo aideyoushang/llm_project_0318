@@ -48,6 +48,17 @@ def normalize_text(title: Any, text: Any, review: Any) -> str:
     return "\n".join(parts)
 
 
+def normalize_lang(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        v = value.strip()
+        if v.startswith("__label__"):
+            return v.replace("__label__", "")
+        return v
+    return str(value)
+
+
 def sentence_split(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
@@ -112,7 +123,8 @@ def main() -> None:
         rows = len(next(iter(batch.values()))) if batch else 0
         for i in range(rows):
             record = {k: v[i] for k, v in batch.items()}
-            if args.lang and record.get("lang") not in (None, args.lang):
+            record_lang = normalize_lang(record.get("lang"))
+            if args.lang and record_lang not in (None, args.lang):
                 continue
             text = normalize_text(record.get("title"), record.get("text"), record.get("review"))
             if not text:
@@ -176,4 +188,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
