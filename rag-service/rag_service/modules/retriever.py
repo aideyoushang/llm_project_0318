@@ -33,6 +33,7 @@ class RetrieverModule:
         self._summary_meta: list[dict[str, Any]] | None = None
         self._encoder = None
         self._llm = ArkResponsesClient()
+        self._load_errors: list[str] = []
 
     def retrieve(self, question: str, intent: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         self._ensure_loaded()
@@ -145,9 +146,10 @@ class RetrieverModule:
                 with bm25_pkl.open("rb") as f:
                     self._bm25 = pickle.load(f)
                 self._bm25_meta = self._read_jsonl(bm25_meta)
-            except Exception:
+            except Exception as e:
                 self._bm25 = None
                 self._bm25_meta = None
+                self._load_errors.append(f"bm25_load:{type(e).__name__}:{str(e)[:200]}")
 
         vector_dir = root / "artifacts" / "vector"
         vector_index_path = vector_dir / "index.faiss"
@@ -164,9 +166,12 @@ class RetrieverModule:
                     model = json.loads(vector_cfg.read_text(encoding="utf-8")).get("model")
                 if model:
                     self._encoder = self._load_encoder(str(model))
-            except Exception:
+                else:
+                    self._load_errors.append("vector_model_missing")
+            except Exception as e:
                 self._vector_index = None
                 self._vector_meta = None
+                self._load_errors.append(f"vector_load:{type(e).__name__}:{str(e)[:200]}")
 
         summary_dir = root / "artifacts" / "summary_vector"
         summary_index_path = summary_dir / "index.faiss"
@@ -182,11 +187,29 @@ class RetrieverModule:
                     model = json.loads(summary_cfg.read_text(encoding="utf-8")).get("model")
                     if model:
                         self._encoder = self._load_encoder(str(model))
-            except Exception:
+                    else:
+                        self._load_errors.append("summary_model_missing")
+            except Exception as e:
                 self._summary_index = None
                 self._summary_meta = None
+                self._load_errors.append(f"summary_load:{type(e).__name__}:{str(e)[:200]}")
 
         self._loaded = True
+
+    def status(self) -> dict[str, Any]:
+        root = self._project_root()
+        return {
+            "project_root": root.as_posix(),
+            "bm25_loaded": self._bm25 is not None,
+            "vector_index_loaded": self._vector_index is not None,
+            "summary_index_loaded": self._summary_index is not None,
+            "encoder_loaded": self._encoder is not None,
+            "vector_index_exists": (root / "artifacts" / "vector" / "index.faiss").exists(),
+            "vector_meta_exists": (root / "artifacts" / "vector" / "doc_meta.jsonl").exists(),
+            "summary_index_exists": (root / "artifacts" / "summary_vector" / "index.faiss").exists(),
+            "summary_meta_exists": (root / "artifacts" / "summary_vector" / "doc_meta.jsonl").exists(),
+            "load_errors": list(self._load_errors),
+        }
 
     def _read_jsonl(self, path: Path) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
