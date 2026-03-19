@@ -15,7 +15,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-index-dir", default="artifacts/summary_vector")
     parser.add_argument("--model", default="BAAI/bge-base-en-v1.5")
     parser.add_argument("--lang", default="en")
-    parser.add_argument("--max-reviews-per-hotel", type=int, default=20)
+    parser.add_argument(
+        "--group-by",
+        choices=["hotel_id", "overall_bucket", "aspect"],
+        default="hotel_id",
+    )
+    parser.add_argument("--max-reviews-per-group", type=int, default=20)
     parser.add_argument("--max-chars", type=int, default=4000)
     parser.add_argument("--batch-size", type=int, default=2000)
     return parser.parse_args()
@@ -88,14 +93,16 @@ def main() -> None:
     ensure_dir(output_path.parent)
     ensure_dir(output_index_dir)
 
-    hotel_reviews: dict[str, list[str]] = defaultdict(list)
-    hotel_stats: dict[str, dict[str, Any]] = defaultdict(dict)
+    group_reviews: dict[str, list[str]] = defaultdict(list)
+    group_stats: dict[str, dict[str, Any]] = defaultdict(dict)
     counters = {
         "seen_rows": 0,
         "kept_reviews": 0,
         "skipped_lang": 0,
         "skipped_empty_review": 0,
     }
+
+    aspect_fields = ["cleanliness", "value", "location", "rooms", "sleep_quality"]
 
     for batch in iter_batches(input_dir, args.batch_size):
         rows = len(next(iter(batch.values()))) if batch else 0
@@ -105,34 +112,68 @@ def main() -> None:
             if args.lang and record_lang not in (None, args.lang):
                 counters["skipped_lang"] += 1
                 continue
-            hotel_id = str(batch["hotel_id"][i])
             review = normalize_review(batch.get("title", [None])[i], batch.get("text", [None])[i], batch.get("review", [None])[i])
             if not review:
                 counters["skipped_empty_review"] += 1
                 continue
-            hotel_reviews[hotel_id].append(review)
-            counters["kept_reviews"] += 1
-            if "overall" in batch:
-                overall = batch["overall"][i]
+
+            def add_to_group(group_id: str) -> None:
+                if len(group_reviews[group_id]) >= args.max_reviews_per_group:
+                    return
+                group_reviews[group_id].append(review)
+                counters["kept_reviews"] += 1
+                overall = batch.get("overall", [None])[i]
                 if overall is not None:
-                    hotel_stat = hotel_stats[hotel_id]
-                    hotel_stat.setdefault("overall_sum", 0.0)
-                    hotel_stat.setdefault("overall_cnt", 0)
-                    hotel_stat["overall_sum"] += float(overall)
-                    hotel_stat["overall_cnt"] += 1
+                    stat = group_stats[group_id]
+                    stat.setdefault("overall_sum", 0.0)
+                    stat.setdefault("overall_cnt", 0)
+                    stat["overall_sum"] += float(overall)
+                    stat["overall_cnt"] += 1
+
+            if args.group_by == "hotel_id":
+                group_id = str(batch["hotel_id"][i])
+                add_to_group(group_id)
+                continue
+
+            if args.group_by == "overall_bucket":
+                overall = batch.get("overall", [None])[i]
+                if overall is None:
+                    continue
+                try:
+                    bucket = int(round(float(overall)))
+                except Exception:
+                    continue
+                bucket = max(1, min(5, bucket))
+                add_to_group(f"overall_{bucket}")
+                continue
+
+            if args.group_by == "aspect":
+                for field in aspect_fields:
+                    v = batch.get(field, [None])[i]
+                    if v is None:
+                        continue
+                    try:
+                        fv = float(v)
+                    except Exception:
+                        continue
+                    if fv >= 4:
+                        add_to_group(f"{field}_high")
+                    elif fv <= 2:
+                        add_to_group(f"{field}_low")
+                continue
 
     rows: list[dict[str, Any]] = []
-    for hotel_id, reviews in hotel_reviews.items():
-        reviews = reviews[: args.max_reviews_per_hotel]
+    for group_id, reviews in group_reviews.items():
         summary = build_summary(reviews, args.max_chars)
-        stats = hotel_stats.get(hotel_id, {})
+        stats = group_stats.get(group_id, {})
         avg_overall = None
         if stats.get("overall_cnt"):
             avg_overall = stats["overall_sum"] / max(stats["overall_cnt"], 1)
             avg_overall = round(avg_overall, 2)
         rows.append(
             {
-                "hotel_id": hotel_id,
+                "group_id": group_id,
+                "group_by": args.group_by,
                 "summary": summary,
                 "review_count": len(reviews),
                 "avg_overall": avg_overall,
@@ -179,12 +220,14 @@ def main() -> None:
         "model": args.model,
         "total_docs": len(rows),
         "lang": args.lang,
+        "group_by": args.group_by,
+        "max_reviews_per_group": args.max_reviews_per_group,
         "stats": {
             "seen_rows": int(counters["seen_rows"]),
             "kept_reviews": int(counters["kept_reviews"]),
             "skipped_lang": int(counters["skipped_lang"]),
             "skipped_empty_review": int(counters["skipped_empty_review"]),
-            "unique_hotels": int(len(rows)),
+            "unique_groups": int(len(rows)),
         },
     }
     (output_index_dir / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

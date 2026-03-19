@@ -62,7 +62,7 @@
 ## 当前规划与 Todo
 - 已完成：生成 chunks.parquet（lang 为空，max_chars 1400，overlap 200，min_chars 120）
 - 已完成：完成 BM25 与向量索引离线构建（artifacts/bm25、artifacts/vector）
-- 进行中：生成 hotel_id 摘要与摘要向量索引（build_hotel_summaries.py，lang 需兼容 __label__en）
+- 进行中：生成 Summary 索引（数据集中 hotel_id 唯一，需改用 overall_bucket/aspect 分组）
 - 待办：实现查询理解模块并联通后端
 - 待办：实现混合检索与 RRF 融合（含 HyDE/Reverse Query）
 - 待办：实现重排与严格引用生成（含 SSE）
@@ -73,6 +73,7 @@
 - 分片文本：通过 build_chunks.py 生成 data/rag/chunks.parquet（切分参数：max_chars 1400，overlap 200，min_chars 120）
 - 稀疏检索：通过 build_bm25.py 生成 BM25 索引到 artifacts/bm25（bm25.pkl + doc_meta.jsonl）
 - 稠密检索：通过 build_vector_index.py 生成向量索引到 artifacts/vector（index.faiss + doc_meta.jsonl）
+- 摘要索引（问题已定位）：当前数据集中 hotel_id 完全唯一（rows=201295，unique_hotel_id=201295），因此“按 hotel_id 摘要”会退化为“按评论摘要”，需改为按 overall_bucket 或 aspect 分组构建 Summary 索引。
 
 ## 用户已确认的偏好与范围
 - RAG：希望问题覆盖面较广，回答尽量带引用证据（可追溯到具体评论片段）。
