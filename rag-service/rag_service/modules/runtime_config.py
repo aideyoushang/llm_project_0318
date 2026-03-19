@@ -14,6 +14,8 @@ class RuntimeConfig:
     ark_model: str | None = None
     intent_mode: str | None = None
     enable_hyde: bool | None = None
+    hf_offline: bool | None = None
+    hf_endpoint: str | None = None
 
 
 def _default_config_path() -> Path:
@@ -65,6 +67,8 @@ def _load_from_file() -> RuntimeConfig:
         ark_model=get_str("ark_model"),
         intent_mode=get_str("intent_mode"),
         enable_hyde=get_bool("enable_hyde"),
+        hf_offline=get_bool("hf_offline"),
+        hf_endpoint=get_str("hf_endpoint"),
     )
 
 
@@ -82,10 +86,21 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
     elif enable_hyde_env in {"0", "false", "no"}:
         enable_hyde = False
 
+    hf_endpoint = os.environ.get("HF_ENDPOINT", "").strip() or cfg.hf_endpoint
+
+    hf_offline_env = os.environ.get("HF_HUB_OFFLINE", "").strip().lower()
+    hf_offline = cfg.hf_offline
+    if hf_offline_env in {"1", "true", "yes"}:
+        hf_offline = True
+    elif hf_offline_env in {"0", "false", "no"}:
+        hf_offline = False
+
     return RuntimeConfig(
         ark_base_url=base_url,
         ark_api_key=api_key,
         ark_model=model,
         intent_mode=intent_mode,
         enable_hyde=enable_hyde,
+        hf_offline=hf_offline,
+        hf_endpoint=hf_endpoint,
     )

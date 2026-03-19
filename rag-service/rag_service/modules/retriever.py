@@ -199,12 +199,23 @@ class RetrieverModule:
         return rows
 
     def _load_encoder(self, model_name: str):
+        cfg = load_runtime_config()
+        if cfg.hf_endpoint:
+            os.environ.setdefault("HF_ENDPOINT", cfg.hf_endpoint)
+        if cfg.hf_offline is True:
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
         except ModuleNotFoundError as e:
             raise RuntimeError(
                 "Missing dependency: sentence-transformers. Install with: pip install sentence-transformers"
             ) from e
+        if cfg.hf_offline is True:
+            try:
+                return SentenceTransformer(model_name, local_files_only=True)
+            except TypeError:
+                return SentenceTransformer(model_name)
         return SentenceTransformer(model_name)
 
     def _tokenize(self, text: str) -> list[str]:

@@ -92,6 +92,9 @@
 - references 将透传融合来源 sources 与融合分数 score（便于验证 vector/summary/hyde 是否生效）
 - intent 将透传 intent_source（ark/rule）与 intent_fallback（如 ark_failed）便于判断是否走外部 LLM
 
+## HuggingFace 网络
+- 如果云服务器无法访问 huggingface.co，可在配置文件中设置 hf_offline=true（要求 embedding 模型已在本机缓存），或设置 hf_endpoint=https://hf-mirror.com 走镜像。
+
 ## 已完成关键步骤（复盘用）
 - 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）
 - 分片文本：通过 build_chunks.py 生成 data/rag/chunks.parquet（切分参数：max_chars 1400，overlap 200，min_chars 120）
