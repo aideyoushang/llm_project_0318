@@ -87,6 +87,7 @@
 - 示例：rag-service/config.local.json.example
 - 覆盖规则：环境变量优先级高于配置文件（便于临时切换）
 - 默认读取路径：rag-service/config.local.json（无需额外设置 RAG_CONFIG_PATH）
+- 英文模式：可设置 force_english=true，要求用户使用英文提问，系统返回英文回答
 
 ## 线上观察
 - references 将透传融合来源 sources 与融合分数 score（便于验证 vector/summary/hyde 是否生效）

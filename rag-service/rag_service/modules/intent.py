@@ -15,6 +15,16 @@ class IntentModule:
     def classify(self, question: str) -> dict[str, Any]:
         q = question.strip()
         q_lower = q.lower()
+        cfg = load_runtime_config()
+        if cfg.force_english is True and self._looks_like_chinese(q):
+            return {
+                "use_retrieval": False,
+                "intent_type": "language_mismatch",
+                "query": q,
+                "constraints": {"language": "en"},
+                "subqueries": [{"q": q, "weight": 1.0, "type": "original"}],
+                "intent_source": "rule",
+            }
 
         use_llm = self._use_llm_intent()
         if use_llm:
@@ -40,6 +50,7 @@ class IntentModule:
         user_prompt = "\n".join(
             [
                 "You are a query understanding module for hotel review RAG.",
+                "All user questions are in English. Respond in English.",
                 "Return ONLY valid minified JSON with this schema:",
                 "{"
                 '"use_retrieval": boolean,'
@@ -167,16 +178,15 @@ class IntentModule:
             "good morning",
             "good afternoon",
             "good evening",
-            "你好",
-            "在吗",
-            "你是谁",
-            "你能做什么",
         ]
         if any(g in q_lower for g in greetings):
             return True
         if len(q_lower) <= 8 and q_lower in {"hi", "hello", "hey", "yo"}:
             return True
         return False
+
+    def _looks_like_chinese(self, text: str) -> bool:
+        return bool(re.search(r"[\u4e00-\u9fff]", text))
 
     def _detect_recency_level(self, q_lower: str) -> str:
         if re.search(r"\b(20\d{2})\b", q_lower):
@@ -187,18 +197,16 @@ class IntentModule:
             return "clear"
         if re.search(r"\b(recent|recently|latest|newest|nowadays|these days)\b", q_lower):
             return "implied"
-        if re.search(r"(最近|近期|最新|今年|本月|上月|本周|上周)", q_lower):
-            return "implied"
         return "none"
 
     def _detect_rating_fields(self, q_lower: str) -> list[str]:
         mapping: list[tuple[str, list[str]]] = [
-            ("cleanliness", ["clean", "dirty", "hygiene", "卫生", "干净", "脏"]),
-            ("value", ["value", "worth", "price", "expensive", "cheap", "性价比", "价格", "贵", "便宜"]),
-            ("location", ["location", "near", "close to", "distance", "交通", "位置", "附近", "离"]),
-            ("rooms", ["room", "rooms", "bed", "suite", "房间", "床", "套房"]),
-            ("sleep_quality", ["sleep", "quiet", "noise", "noisy", "睡眠", "安静", "噪音", "吵"]),
-            ("overall", ["overall", "rating", "score", "recommend", "推荐", "评分", "总评"]),
+            ("cleanliness", ["clean", "dirty", "hygiene"]),
+            ("value", ["value", "worth", "price", "expensive", "cheap"]),
+            ("location", ["location", "near", "close to", "distance"]),
+            ("rooms", ["room", "rooms", "bed", "suite"]),
+            ("sleep_quality", ["sleep", "quiet", "noise", "noisy"]),
+            ("overall", ["overall", "rating", "score", "recommend"]),
         ]
         fields: list[str] = []
         for field, keywords in mapping:

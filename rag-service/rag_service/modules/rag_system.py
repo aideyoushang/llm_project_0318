@@ -23,6 +23,12 @@ class RagSystem:
         intent = self.intent.classify(question)
         if bool(payload.get("intent_only")):
             return {"answer": "", "references": [], "intent": intent}
+        if intent.get("intent_type") == "language_mismatch":
+            return {
+                "answer": "Please ask your question in English so I can retrieve evidence from the English review corpus.",
+                "references": [],
+                "intent": intent,
+            }
         contexts = []
         references = []
         if intent.get("use_retrieval", True):

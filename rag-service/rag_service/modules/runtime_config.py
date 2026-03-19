@@ -16,6 +16,7 @@ class RuntimeConfig:
     enable_hyde: bool | None = None
     hf_offline: bool | None = None
     hf_endpoint: str | None = None
+    force_english: bool | None = None
 
 
 def _default_config_path() -> Path:
@@ -69,6 +70,7 @@ def _load_from_file() -> RuntimeConfig:
         enable_hyde=get_bool("enable_hyde"),
         hf_offline=get_bool("hf_offline"),
         hf_endpoint=get_str("hf_endpoint"),
+        force_english=get_bool("force_english"),
     )
 
 
@@ -95,6 +97,13 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
     elif hf_offline_env in {"0", "false", "no"}:
         hf_offline = False
 
+    force_english_env = os.environ.get("FORCE_ENGLISH", "").strip().lower()
+    force_english = cfg.force_english
+    if force_english_env in {"1", "true", "yes"}:
+        force_english = True
+    elif force_english_env in {"0", "false", "no"}:
+        force_english = False
+
     return RuntimeConfig(
         ark_base_url=base_url,
         ark_api_key=api_key,
@@ -103,4 +112,5 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
         enable_hyde=enable_hyde,
         hf_offline=hf_offline,
         hf_endpoint=hf_endpoint,
+        force_english=force_english,
     )
