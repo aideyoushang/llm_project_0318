@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 SERVICE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SERVICE_DIR.parent
@@ -43,6 +45,25 @@ def create_app() -> FastAPI:
     @app.post("/api/v1/chat")
     def chat(payload: dict) -> dict:
         return rag.chat(payload)
+
+    @app.post("/api/v1/chat/stream")
+    def chat_stream(payload: dict) -> StreamingResponse:
+        def event_gen():
+            result = rag.chat(payload)
+            answer = str(result.get("answer") or "")
+            references = result.get("references") or []
+            intent = result.get("intent") or {}
+            chunk_size = 200
+            for i in range(0, len(answer), chunk_size):
+                data = json.dumps({"type": "answer_chunk", "content": answer[i : i + chunk_size]}, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+            data = json.dumps({"type": "references", "content": references}, ensure_ascii=False)
+            yield f"data: {data}\n\n"
+            data = json.dumps({"type": "intent", "content": intent}, ensure_ascii=False)
+            yield f"data: {data}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(event_gen(), media_type="text/event-stream")
 
     return app
 

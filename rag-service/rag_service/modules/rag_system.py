@@ -36,7 +36,7 @@ class RagSystem:
         references = []
         if intent.get("use_retrieval", True):
             candidates = self.retriever.retrieve(question, intent=intent)
-            ranked = self.ranker.rerank(question, candidates)
+            ranked = self.ranker.rerank(question, candidates, intent=intent)
             contexts = [c.get("text", "") for c in ranked]
             references = []
             for c in ranked:
@@ -50,5 +50,13 @@ class RagSystem:
                         pass
                 references.append(meta)
 
-        answer = self.generator.generate(question=question, contexts=contexts)
+        gen = self.generator.generate(question=question, contexts=contexts, references=references)
+        answer = str(gen.get("answer") or "")
+        used_refs = gen.get("used_refs") or []
+        if used_refs:
+            filtered = []
+            for idx in used_refs:
+                if isinstance(idx, int) and 0 <= idx < len(references):
+                    filtered.append(references[idx])
+            references = filtered if filtered else references
         return {"answer": answer, "references": references, "intent": intent}
