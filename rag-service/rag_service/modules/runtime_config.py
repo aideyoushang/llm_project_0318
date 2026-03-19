@@ -20,8 +20,7 @@ class RuntimeConfig:
 
 
 def _default_config_path() -> Path:
-    service_dir = Path(__file__).resolve().parents[3]
-    return service_dir / "config.local.json"
+    return Path.cwd() / "rag-service" / "config.local.json"
 
 
 def load_runtime_config() -> RuntimeConfig:

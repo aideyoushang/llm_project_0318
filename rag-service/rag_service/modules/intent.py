@@ -47,10 +47,12 @@ class IntentModule:
 
     def _classify_with_llm(self, question: str) -> dict[str, Any] | None:
         allowed_fields = ["overall", "cleanliness", "value", "location", "rooms", "sleep_quality"]
+        is_zh = self._looks_like_chinese(question)
         user_prompt = "\n".join(
             [
                 "You are a query understanding module for hotel review RAG.",
-                "All user questions are in English. Respond in English.",
+                "Generate subqueries in English for retrieval over an English review corpus.",
+                "If the user question is not in English, still generate English subqueries.",
                 "Return ONLY valid minified JSON with this schema:",
                 "{"
                 '"use_retrieval": boolean,'
@@ -64,7 +66,9 @@ class IntentModule:
                 "- If user is greeting/chitchat, set use_retrieval=false and intent_type=chat.",
                 "- Otherwise use_retrieval=true and intent_type=domain_qa.",
                 "- subqueries must be 1 to 3 items, weights in (0,1].",
+                "- subqueries must be in English.",
                 f"User question: {question}",
+                "Note: question_language=zh" if is_zh else "Note: question_language=en",
             ]
         )
         try:
@@ -178,6 +182,10 @@ class IntentModule:
             "good morning",
             "good afternoon",
             "good evening",
+            "你好",
+            "在吗",
+            "你是谁",
+            "你能做什么",
         ]
         if any(g in q_lower for g in greetings):
             return True
@@ -197,16 +205,18 @@ class IntentModule:
             return "clear"
         if re.search(r"\b(recent|recently|latest|newest|nowadays|these days)\b", q_lower):
             return "implied"
+        if re.search(r"(最近|近期|最新|今年|本月|上月|本周|上周)", q_lower):
+            return "implied"
         return "none"
 
     def _detect_rating_fields(self, q_lower: str) -> list[str]:
         mapping: list[tuple[str, list[str]]] = [
-            ("cleanliness", ["clean", "dirty", "hygiene"]),
-            ("value", ["value", "worth", "price", "expensive", "cheap"]),
-            ("location", ["location", "near", "close to", "distance"]),
-            ("rooms", ["room", "rooms", "bed", "suite"]),
-            ("sleep_quality", ["sleep", "quiet", "noise", "noisy"]),
-            ("overall", ["overall", "rating", "score", "recommend"]),
+            ("cleanliness", ["clean", "dirty", "hygiene", "卫生", "干净", "脏"]),
+            ("value", ["value", "worth", "price", "expensive", "cheap", "性价比", "价格", "贵", "便宜"]),
+            ("location", ["location", "near", "close to", "distance", "交通", "位置", "附近", "离"]),
+            ("rooms", ["room", "rooms", "bed", "suite", "房间", "床", "套房"]),
+            ("sleep_quality", ["sleep", "quiet", "noise", "noisy", "睡眠", "安静", "噪音", "吵"]),
+            ("overall", ["overall", "rating", "score", "recommend", "推荐", "评分", "总评"]),
         ]
         fields: list[str] = []
         for field, keywords in mapping:
