@@ -86,6 +86,10 @@
 - 文件：rag-service/config.local.json（已加入 .gitignore，不会进入版本库）
 - 示例：rag-service/config.local.json.example
 - 覆盖规则：环境变量优先级高于配置文件（便于临时切换）
+- 默认读取路径：rag-service/config.local.json（无需额外设置 RAG_CONFIG_PATH）
+
+## 线上观察
+- references 将透传融合来源 sources 与融合分数 score（便于验证 vector/summary/hyde 是否生效）
 
 ## 已完成关键步骤（复盘用）
 - 数据准备：TripAdvisor 全量 Parquet 已落盘到 data/raw/tripadvisor（201295 行，2 个分片）
@@ -96,6 +100,7 @@
 - Summary 现状：已跑通 overall_bucket 分组（total_docs=5，max_reviews_per_group=200）。下一步将 Summary 调整为按 评分类型+评分分桶+标签（房型/地点/none） 分组，避免仅按 overall 粗分。
 - Summary 变更：按你的要求，Summary 分组仅使用数据集现有字段，不再引入基于评论文本的房型/地点标签；改为评分类型 × 三档分桶（rating_bucket, low/mid/high）。
 - Summary 结果：已生成 data/rag/summary_rating_bucket.parquet 与 artifacts/summary_vector（group_by=rating_bucket，bucket_scheme=low_mid_high，rating_fields=overall/cleanliness/value/location/rooms/sleep_quality）。
+- 方案B 验证：已通过 intent_only 请求验证 Ark 可返回结构化 intent（含 recency_level、rating_fields、subqueries）。
 
 ## 用户已确认的偏好与范围
 - RAG：希望问题覆盖面较广，回答尽量带引用证据（可追溯到具体评论片段）。

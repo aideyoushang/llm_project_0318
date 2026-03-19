@@ -16,12 +16,9 @@ class RuntimeConfig:
     enable_hyde: bool | None = None
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
 def _default_config_path() -> Path:
-    return _repo_root() / "rag-service" / "config.local.json"
+    service_dir = Path(__file__).resolve().parents[3]
+    return service_dir / "config.local.json"
 
 
 def load_runtime_config() -> RuntimeConfig:
@@ -92,4 +89,3 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
         intent_mode=intent_mode,
         enable_hyde=enable_hyde,
     )
-

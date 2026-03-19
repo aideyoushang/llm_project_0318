@@ -29,7 +29,17 @@ class RagSystem:
             candidates = self.retriever.retrieve(question, intent=intent)
             ranked = self.ranker.rerank(question, candidates)
             contexts = [c.get("text", "") for c in ranked]
-            references = [c.get("metadata", {}) for c in ranked]
+            references = []
+            for c in ranked:
+                meta = dict(c.get("metadata", {}) or {})
+                if "sources" not in meta and isinstance(c.get("sources"), dict):
+                    meta["sources"] = c.get("sources")
+                if "score" not in meta and c.get("score") is not None:
+                    try:
+                        meta["score"] = float(c.get("score"))
+                    except Exception:
+                        pass
+                references.append(meta)
 
         answer = self.generator.generate(question=question, contexts=contexts)
         return {"answer": answer, "references": references, "intent": intent}
