@@ -30,12 +30,13 @@ class ArkResponsesClient:
     def is_configured(self) -> bool:
         return bool(self._config.api_key and self._config.model and self._config.base_url)
 
-    def response_text(self, user_text: str, *, timeout_s: float = 60.0) -> str:
+    def response_text(self, user_text: str, *, timeout_s: float = 60.0, json_object: bool = False) -> str:
         if not self.is_configured():
             raise RuntimeError("Missing ARK_API_KEY or ARK_MODEL for ArkResponsesClient")
 
         payload = {
             "model": self._config.model,
+            "thinking": {"type": "disabled"},
             "input": [
                 {
                     "role": "user",
@@ -48,6 +49,8 @@ class ArkResponsesClient:
                 }
             ],
         }
+        if json_object:
+            payload["text"] = {"format": {"type": "json_object"}}
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             self._config.base_url,
@@ -82,6 +85,7 @@ class ArkResponsesClient:
         payload = {
             "model": self._config.model,
             "stream": True,
+            "thinking": {"type": "disabled"},
             "input": [
                 {
                     "role": "user",

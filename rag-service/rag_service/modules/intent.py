@@ -88,7 +88,7 @@ class IntentModule:
             ]
         )
         try:
-            text = self._llm.response_text(user_prompt, timeout_s=30.0)
+            text = self._llm.response_text(user_prompt, timeout_s=30.0, json_object=True)
         except Exception as e:
             msg = str(e)
             msg = msg.replace("\n", " ").strip()
@@ -109,7 +109,7 @@ class IntentModule:
                 ]
             )
             try:
-                repaired = self._llm.response_text(repair_prompt, timeout_s=30.0)
+                repaired = self._llm.response_text(repair_prompt, timeout_s=30.0, json_object=True)
             except Exception:
                 repaired = ""
             payload = self._try_parse_json(repaired)
