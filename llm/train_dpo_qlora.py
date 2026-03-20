@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 from pathlib import Path
 
 import torch
@@ -84,20 +85,26 @@ def main() -> None:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cfg = DPOConfig(
-        output_dir=out_dir.as_posix(),
-        per_device_train_batch_size=int(args.bs),
-        gradient_accumulation_steps=int(args.ga),
-        num_train_epochs=float(args.epochs),
-        learning_rate=float(args.lr),
-        logging_steps=10,
-        save_steps=100,
-        save_total_limit=2,
-        fp16=True,
-        report_to=[],
-        max_length=int(args.max_len),
-        max_prompt_length=int(args.max_prompt_len),
-    )
+    cfg_kwargs = {
+        "output_dir": out_dir.as_posix(),
+        "per_device_train_batch_size": int(args.bs),
+        "gradient_accumulation_steps": int(args.ga),
+        "num_train_epochs": float(args.epochs),
+        "learning_rate": float(args.lr),
+        "logging_steps": 10,
+        "save_steps": 100,
+        "save_total_limit": 2,
+        "fp16": True,
+        "report_to": [],
+    }
+    sig = inspect.signature(DPOConfig.__init__)
+    if "max_length" in sig.parameters:
+        cfg_kwargs["max_length"] = int(args.max_len)
+    if "max_prompt_length" in sig.parameters:
+        cfg_kwargs["max_prompt_length"] = int(args.max_prompt_len)
+    elif "max_prompt_len" in sig.parameters:
+        cfg_kwargs["max_prompt_len"] = int(args.max_prompt_len)
+    cfg = DPOConfig(**cfg_kwargs)
 
     trainer = DPOTrainer(
         model=model,
