@@ -7,7 +7,6 @@ import torch
 from datasets import load_dataset
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from trl import DPOConfig, DPOTrainer
 
 
 def _format_prompt(prompt: str) -> str:
@@ -26,6 +25,18 @@ def main() -> None:
     p.add_argument("--bs", type=int, default=1)
     p.add_argument("--ga", type=int, default=16)
     args = p.parse_args()
+
+    try:
+        import torch.distributed.fsdp as fsdp  # type: ignore
+
+        if not hasattr(fsdp, "FSDPModule"):
+            class FSDPModule:  # type: ignore
+                pass
+            fsdp.FSDPModule = FSDPModule  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+    from trl import DPOConfig, DPOTrainer
 
     can_bnb = hasattr(torch.nn.Module, "set_submodule")
     bnb = None
