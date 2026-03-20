@@ -50,25 +50,39 @@ class IntentModule:
     def _classify_with_llm(self, question: str) -> tuple[dict[str, Any] | None, str | None]:
         allowed_fields = ["overall", "cleanliness", "value", "location", "rooms", "sleep_quality"]
         is_zh = self._looks_like_chinese(question)
+        schema = (
+            "{"
+            '"use_retrieval": boolean,'
+            '"intent_type": "chat"|"domain_qa"|"analytics",'
+            '"query": string,'
+            '"constraints": {"recency_level":"clear"|"implied"|"none","rating_fields": string[]},'
+            '"subqueries": [{"q": string, "weight": number, "type": string}]'
+            "}"
+        )
+
+        example = (
+            '{"use_retrieval":true,"intent_type":"domain_qa","query":"How is the hotel location recently?",'
+            '"constraints":{"recency_level":"implied","rating_fields":["location"]},'
+            '"subqueries":[{"q":"recent hotel location reviews","weight":1.0,"type":"retrieval"},'
+            '{"q":"hotel location ratings in recent reviews","weight":0.9,"type":"rating"}]}'
+        )
+
         user_prompt = "\n".join(
             [
                 "You are a query understanding module for hotel review RAG.",
                 "Generate subqueries in English for retrieval over an English review corpus.",
                 "If the user question is not in English, still generate English subqueries.",
-                "Return ONLY valid minified JSON with this schema:",
-                "{"
-                '"use_retrieval": boolean,'
-                '"intent_type": "chat"|"domain_qa"|"analytics",'
-                '"query": string,'
-                '"constraints": {"recency_level":"clear"|"implied"|"none","rating_fields": string[]},'
-                '"subqueries": [{"q": string, "weight": number, "type": string}]'
-                "}",
+                "You MUST output a single line of minified JSON and nothing else.",
+                "Do NOT wrap in markdown fences. Do NOT add explanations.",
+                "The output must start with '{' and end with '}'.",
+                f"Schema: {schema}",
                 f"Allowed rating_fields values: {allowed_fields}",
                 "Rules:",
                 "- If user is greeting/chitchat, set use_retrieval=false and intent_type=chat.",
                 "- Otherwise use_retrieval=true and intent_type=domain_qa.",
                 "- subqueries must be 1 to 3 items, weights in (0,1].",
                 "- subqueries must be in English.",
+                f"Example output: {example}",
                 f"User question: {question}",
                 "Note: question_language=zh" if is_zh else "Note: question_language=en",
             ]
@@ -81,7 +95,24 @@ class IntentModule:
             if len(msg) > 300:
                 msg = msg[:300]
             return None, msg
+
         payload = self._try_parse_json(text)
+        if payload is None:
+            repair_prompt = "\n".join(
+                [
+                    "Convert the following text into a single line of valid minified JSON that matches the exact schema.",
+                    "Output ONLY JSON. No markdown. No extra text.",
+                    f"Schema: {schema}",
+                    f"Allowed rating_fields values: {allowed_fields}",
+                    "Text to convert:",
+                    text,
+                ]
+            )
+            try:
+                repaired = self._llm.response_text(repair_prompt, timeout_s=30.0)
+            except Exception:
+                repaired = ""
+            payload = self._try_parse_json(repaired)
         if payload is None:
             return None, "Ark response is not valid JSON"
         try:
