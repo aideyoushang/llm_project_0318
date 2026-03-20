@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 from pathlib import Path
 
 import torch
@@ -73,14 +74,32 @@ def main() -> None:
         report_to=[],
     )
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=cfg,
-        train_dataset=ds,
-        peft_config=lora,
-        formatting_func=lambda ex: ex["messages"],
-    )
+    sig = inspect.signature(SFTTrainer.__init__)
+    trainer_kwargs = {
+        "model": model,
+        "args": cfg,
+        "train_dataset": ds,
+        "peft_config": lora,
+    }
+    if "tokenizer" in sig.parameters:
+        trainer_kwargs["tokenizer"] = tokenizer
+    if "processing_class" in sig.parameters:
+        trainer_kwargs["processing_class"] = tokenizer
+    if "formatting_func" in sig.parameters:
+        trainer_kwargs["formatting_func"] = lambda ex: ex["messages"]
+    if "dataset_text_field" in sig.parameters and "formatting_func" not in sig.parameters:
+        def to_text(ex):
+            msgs = ex.get("messages") or []
+            chunks = []
+            for m in msgs:
+                role = str(m.get("role") or "user")
+                content = str(m.get("content") or "")
+                chunks.append(f"{role}: {content}")
+            return {"text": "\n".join(chunks)}
+        ds = ds.map(to_text)
+        trainer_kwargs["train_dataset"] = ds
+        trainer_kwargs["dataset_text_field"] = "text"
+    trainer = SFTTrainer(**trainer_kwargs)
     trainer.train()
     trainer.save_model(out_dir.as_posix())
 
