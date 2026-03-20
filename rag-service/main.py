@@ -76,6 +76,8 @@ def create_app() -> FastAPI:
       .ref { border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px; }
       .meta { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
       .stage { font-size: 12px; color: #111827; }
+      .claims { display: grid; gap: 8px; }
+      .claim { border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px; }
     </style>
   </head>
   <body>
@@ -88,6 +90,8 @@ def create_app() -> FastAPI:
     <p class="stage" id="stage"></p>
     <h3>Answer</h3>
     <pre id="answer"></pre>
+    <h3>Claims</h3>
+    <div class="claims" id="claims"></div>
     <h3>References</h3>
     <div class="refs" id="refs"></div>
     <h3>Intent</h3>
@@ -100,7 +104,24 @@ def create_app() -> FastAPI:
         $("stage").textContent = "";
         $("answer").textContent = "";
         $("intent").textContent = "";
+        $("claims").innerHTML = "";
         $("refs").innerHTML = "";
+      }
+
+      function renderClaims(claims) {
+        $("claims").innerHTML = "";
+        for (const c of claims) {
+          const el = document.createElement("div");
+          el.className = "claim";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `ref_ids=${(c.ref_ids || []).join(",")}`;
+          const txt = document.createElement("div");
+          txt.textContent = c.text || "";
+          el.appendChild(meta);
+          el.appendChild(txt);
+          $("claims").appendChild(el);
+        }
       }
 
       function renderRefs(refs) {
@@ -151,6 +172,7 @@ def create_app() -> FastAPI:
             try { obj = JSON.parse(dataStr); } catch { continue; }
             if (obj.type === "stage") $("stage").textContent = `stage: ${obj.content}`;
             if (obj.type === "answer_chunk") $("answer").textContent += obj.content;
+            if (obj.type === "claims") renderClaims(obj.content || []);
             if (obj.type === "references") renderRefs(obj.content || []);
             if (obj.type === "intent") $("intent").textContent = JSON.stringify(obj.content, null, 2);
           }
