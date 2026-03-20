@@ -60,14 +60,13 @@ def create_app(model_path: str, lora_path: str | None = None) -> FastAPI:
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        device_map="auto" if device == "cuda" else None,
+        device_map=None,
         trust_remote_code=True,
     )
+    model.to(device)
     if lora_path:
         model = PeftModel.from_pretrained(model, lora_path)
         model = model.merge_and_unload()
-    if device != "cuda":
-        model.to(device)
     model.eval()
 
     @app.get("/healthz")
