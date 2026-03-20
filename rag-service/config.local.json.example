@@ -4,6 +4,7 @@
   "ark_model": "doubao-seed-2-0-lite-260215",
   "intent_mode": "ark",
   "enable_hyde": true,
+  "enable_llm_rerank": true,
   "force_english": true,
   "hf_offline": true,
   "hf_endpoint": "https://hf-mirror.com"

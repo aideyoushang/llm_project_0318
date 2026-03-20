@@ -17,6 +17,7 @@ class RuntimeConfig:
     hf_offline: bool | None = None
     hf_endpoint: str | None = None
     force_english: bool | None = None
+    enable_llm_rerank: bool | None = None
 
 
 def _default_config_path() -> Path:
@@ -70,6 +71,7 @@ def _load_from_file() -> RuntimeConfig:
         hf_offline=get_bool("hf_offline"),
         hf_endpoint=get_str("hf_endpoint"),
         force_english=get_bool("force_english"),
+        enable_llm_rerank=get_bool("enable_llm_rerank"),
     )
 
 
@@ -103,6 +105,13 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
     elif force_english_env in {"0", "false", "no"}:
         force_english = False
 
+    enable_llm_rerank_env = os.environ.get("ENABLE_LLM_RERANK", "").strip().lower()
+    enable_llm_rerank = cfg.enable_llm_rerank
+    if enable_llm_rerank_env in {"1", "true", "yes"}:
+        enable_llm_rerank = True
+    elif enable_llm_rerank_env in {"0", "false", "no"}:
+        enable_llm_rerank = False
+
     return RuntimeConfig(
         ark_base_url=base_url,
         ark_api_key=api_key,
@@ -112,4 +121,5 @@ def _apply_env_overrides(cfg: RuntimeConfig) -> RuntimeConfig:
         hf_offline=hf_offline,
         hf_endpoint=hf_endpoint,
         force_english=force_english,
+        enable_llm_rerank=enable_llm_rerank,
     )

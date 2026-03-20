@@ -94,6 +94,7 @@
 - intent 将透传 intent_source（ark/rule）与 intent_fallback（如 ark_failed）便于判断是否走外部 LLM
 - SSE 事件：stage / answer_chunk / references / intent / [DONE]
 - Demo 页面：GET /demo（用于手工验证 SSE 与引用展示）
+- 重排开关：enable_llm_rerank=true 或 ENABLE_LLM_RERANK=1
 
 ## HuggingFace 网络
 - 如果云服务器无法访问 huggingface.co，可在配置文件中设置 hf_offline=true（要求 embedding 模型已在本机缓存），或设置 hf_endpoint=https://hf-mirror.com 走镜像。

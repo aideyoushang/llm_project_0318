@@ -96,6 +96,8 @@ class RagSystem:
             candidates = self.retriever.retrieve(question, intent=intent)
             yield self._sse({"type": "stage", "content": "rerank"})
             ranked = self.ranker.rerank(question, candidates, intent=intent)
+            if self.ranker.last_mode() == "llm":
+                yield self._sse({"type": "stage", "content": "rerank_llm"})
             for c in ranked:
                 meta = dict(c.get("metadata", {}) or {})
                 if "sources" not in meta and isinstance(c.get("sources"), dict):
