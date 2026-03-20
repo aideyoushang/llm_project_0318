@@ -71,6 +71,7 @@ class RagSystem:
             yield self._sse("[DONE]", raw=True)
             return
 
+        yield self._sse({"type": "stage", "content": "intent"})
         intent = self.intent.classify(question)
         if bool(payload.get("intent_only")):
             yield self._sse({"type": "intent", "content": intent})
@@ -91,7 +92,9 @@ class RagSystem:
 
         references: list[dict[str, Any]] = []
         if intent.get("use_retrieval", True):
+            yield self._sse({"type": "stage", "content": "retrieve"})
             candidates = self.retriever.retrieve(question, intent=intent)
+            yield self._sse({"type": "stage", "content": "rerank"})
             ranked = self.ranker.rerank(question, candidates, intent=intent)
             for c in ranked:
                 meta = dict(c.get("metadata", {}) or {})
@@ -107,6 +110,7 @@ class RagSystem:
         answer_parts: list[str] = []
         any_streamed = False
         try:
+            yield self._sse({"type": "stage", "content": "generate"})
             for delta in self.generator.stream_answer(question=question, references=references):
                 any_streamed = True
                 answer_parts.append(delta)
@@ -115,6 +119,7 @@ class RagSystem:
             any_streamed = False
 
         if not any_streamed:
+            yield self._sse({"type": "stage", "content": "generate_fallback"})
             contexts = [str(r.get("chunk_text") or "") for r in references if str(r.get("chunk_text") or "")]
             gen = self.generator.generate(question=question, contexts=contexts, references=references)
             answer = str(gen.get("answer") or "")
@@ -138,6 +143,7 @@ class RagSystem:
                         filtered.append(references[idx])
                 references = filtered if filtered else references
 
+        yield self._sse({"type": "stage", "content": "finalize"})
         yield self._sse({"type": "references", "content": references})
         yield self._sse({"type": "intent", "content": intent})
         yield self._sse("[DONE]", raw=True)
