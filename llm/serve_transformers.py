@@ -7,6 +7,7 @@ from typing import Any
 import torch
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
@@ -51,7 +52,7 @@ def _iter_generate_text(
     return text
 
 
-def create_app(model_path: str) -> FastAPI:
+def create_app(model_path: str, lora_path: str | None = None) -> FastAPI:
     app = FastAPI(title="local-llm-server")
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -62,6 +63,9 @@ def create_app(model_path: str) -> FastAPI:
         device_map="auto" if device == "cuda" else None,
         trust_remote_code=True,
     )
+    if lora_path:
+        model = PeftModel.from_pretrained(model, lora_path)
+        model = model.merge_and_unload()
     if device != "cuda":
         model.to(device)
     model.eval()
@@ -125,15 +129,16 @@ def create_app(model_path: str) -> FastAPI:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--model", type=str, required=True)
+    p.add_argument("--lora", type=str, default="")
     p.add_argument("--host", type=str, default="0.0.0.0")
     p.add_argument("--port", type=int, default=9000)
     args = p.parse_args()
 
     import uvicorn
 
-    uvicorn.run(create_app(args.model), host=args.host, port=args.port)
+    lora_path = args.lora.strip() or None
+    uvicorn.run(create_app(args.model, lora_path=lora_path), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
     main()
-

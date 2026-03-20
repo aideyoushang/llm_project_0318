@@ -21,6 +21,16 @@ huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir Qwen2.5-7B-Instruc
 ```bash
 cd /root/csw_test
 python llm/serve_transformers.py --model /root/csw_test/models/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 9000
+
+加载 LoRA 权重启动：
+
+```bash
+python llm/serve_transformers.py \
+  --model /root/csw_test/models/Qwen2.5-7B-Instruct \
+  --lora /root/csw_test/artifacts/sft/ckpt \
+  --host 0.0.0.0 \
+  --port 9000
+```
 ```
 
 测试：
@@ -66,4 +76,3 @@ python llm/train_dpo_qlora.py \
   --data artifacts/pref/dpo.jsonl \
   --out artifacts/pref/dpo_ckpt
 ```
-
