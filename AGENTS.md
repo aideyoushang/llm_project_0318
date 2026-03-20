@@ -73,6 +73,7 @@
  
 ## 调试技巧
 - intent_only：在请求体中加入 `"intent_only": true` 可只返回 intent（不跑检索/重排/生成），用于排查“首轮检索加载很慢导致 curl 卡住”的情况。
+- 评测脚本：在 /root/csw_test 下运行 `python rag-service/eval_rag.py`，输出到 artifacts/eval/
 
 ## 方案B：外部 LLM 接入（用于方案1+4）
 - 接口：Volcengine Ark Responses API（/api/v3/responses）

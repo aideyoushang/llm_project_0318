@@ -35,9 +35,11 @@ class RagSystem:
             }
         contexts = []
         references = []
+        rerank_mode = "none"
         if intent.get("use_retrieval", True):
             candidates = self.retriever.retrieve(question, intent=intent)
             ranked = self.ranker.rerank(question, candidates, intent=intent)
+            rerank_mode = self.ranker.last_mode()
             contexts = [c.get("text", "") for c in ranked]
             references = []
             for c in ranked:
@@ -75,7 +77,7 @@ class RagSystem:
                         if isinstance(rid, int) and rid in old_to_new:
                             new_ids.append(old_to_new[rid])
                     c["ref_ids"] = new_ids
-        return {"answer": answer, "references": references, "intent": intent, "claims": claims}
+        return {"answer": answer, "references": references, "intent": intent, "claims": claims, "rerank_mode": rerank_mode}
 
     def chat_stream(self, payload: dict[str, Any]):
         question = str(payload.get("question") or "").strip()
