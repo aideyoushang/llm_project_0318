@@ -71,6 +71,53 @@ class GeneratorModule:
             return {"answer": "\n".join(contexts[:1]), "used_refs": [0]}
         return {"answer": answer, "used_refs": used_refs}
 
+    def stream_answer(self, question: str, references: list[dict[str, Any]]):
+        if not references or not self._llm.is_configured():
+            return
+            yield
+
+        evidence = []
+        for i, ref in enumerate(references):
+            chunk_text = str(ref.get("chunk_text") or "")
+            if not chunk_text:
+                continue
+            evidence.append(
+                {
+                    "id": i,
+                    "chunk_id": ref.get("chunk_id"),
+                    "doc_id": ref.get("doc_id"),
+                    "post_date": ref.get("post_date"),
+                    "text": chunk_text,
+                }
+            )
+        if not evidence:
+            return
+            yield
+
+        prompt = "\n".join(
+            [
+                "You are answering a question using only the provided review excerpts.",
+                "Rules:",
+                "- Answer in English.",
+                "- Each sentence must include inline citations like [id].",
+                "- Do NOT output JSON. Do NOT output markdown fences.",
+                f"Question: {question}",
+                "Evidence:",
+                json.dumps(evidence, ensure_ascii=False),
+            ]
+        )
+        for delta in self._llm.response_text_stream(prompt, timeout_s=120.0):
+            yield delta
+
+    def extract_used_refs(self, answer: str) -> list[int]:
+        refs = set()
+        for m in re.findall(r"\[(\d+)\]", answer):
+            try:
+                refs.add(int(m))
+            except Exception:
+                continue
+        return sorted(refs)
+
     def _try_parse_json(self, text: str) -> dict[str, Any] | None:
         t = text.strip()
         if not t:
