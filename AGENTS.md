@@ -76,6 +76,12 @@
 - intent_only：在请求体中加入 `"intent_only": true` 可只返回 intent（不跑检索/重排/生成），用于排查“首轮检索加载很慢导致 curl 卡住”的情况。
 - 评测脚本：在 /root/csw_test 下运行 `python rag-service/eval_rag.py`，输出到 artifacts/eval/
 
+## 本地模型部署与训练（SFT / 偏好优化）
+- 目录：llm/
+- 推理：python llm/serve_transformers.py
+- SFT：python llm/sft_from_eval.py + python llm/train_sft_qlora.py
+- DPO：python llm/pref_from_eval.py + python llm/train_dpo_qlora.py
+
 ## 方案B：外部 LLM 接入（用于方案1+4）
 - 接口：Volcengine Ark Responses API（/api/v3/responses）
 - 环境变量 ARK_API_KEY：外部平台 API Key（只配置在云端环境变量中，不写入仓库）
