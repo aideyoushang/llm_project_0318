@@ -22,24 +22,28 @@ def main() -> None:
     p.add_argument("--ga", type=int, default=16)
     args = p.parse_args()
 
-    bnb = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
+    can_bnb = hasattr(torch.nn.Module, "set_submodule")
+    bnb = None
+    if can_bnb:
+        bnb = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True, trust_remote_code=True)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model,
-        quantization_config=bnb,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        trust_remote_code=True,
-    )
+    model_kwargs = {
+        "torch_dtype": torch.float16,
+        "device_map": "auto",
+        "trust_remote_code": True,
+    }
+    if bnb is not None:
+        model_kwargs["quantization_config"] = bnb
+    model = AutoModelForCausalLM.from_pretrained(args.model, **model_kwargs)
 
     ds = load_dataset("json", data_files=args.data, split="train")
 
@@ -83,4 +87,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
