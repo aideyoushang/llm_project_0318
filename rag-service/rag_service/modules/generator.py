@@ -46,6 +46,7 @@ class GeneratorModule:
                 "- Each claim text must be a standalone sentence WITHOUT any [id] citations.",
                 "- Each claim must cite 1 to 3 ref_ids from the provided evidence ids.",
                 "- ref_ids must be integers from the provided evidence ids.",
+                "- If you want to summarize across multiple excerpts, still cite at most 3 ref_ids and phrase cautiously.",
                 "- Do not invent facts not supported by evidence.",
                 f"Question: {question}",
                 "Evidence:",
@@ -136,6 +137,8 @@ class GeneratorModule:
                     continue
                 if 0 <= rid <= max_ref_id and rid not in ref_ids:
                     ref_ids.append(rid)
+                if len(ref_ids) >= 3:
+                    break
             text = re.sub(r"\s*\[\d+\]\s*", " ", s).strip()
             text = re.sub(r"\s{2,}", " ", text).strip()
             if not text or not ref_ids:
@@ -143,7 +146,7 @@ class GeneratorModule:
             if text.endswith((".", "!", "?")):
                 text = text[:-1].strip()
             chunks.append({"text": text, "ref_ids": ref_ids})
-        return chunks
+        return chunks[:6]
 
     def build_answer_from_claims(self, claims: list[dict[str, Any]]) -> str:
         lines = []
@@ -182,10 +185,12 @@ class GeneratorModule:
                     continue
                 if 0 <= rid <= max_ref_id and rid not in ref_ids:
                     ref_ids.append(rid)
+                if len(ref_ids) >= 3:
+                    break
             if not ref_ids:
                 continue
             out.append({"text": text, "ref_ids": ref_ids})
-        return out
+        return out[:6]
 
     def _try_parse_json(self, text: str) -> dict[str, Any] | None:
         t = text.strip()
