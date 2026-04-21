@@ -76,3 +76,25 @@ python llm/train_dpo_qlora.py \
   --data artifacts/pref/dpo.jsonl \
   --out artifacts/pref/dpo_ckpt
 ```
+
+## 6) 融合 SFT + DPO LoRA
+
+```bash
+cd /root/csw_test
+python llm/merge_lora.py \
+  --model /root/csw_test/models/Qwen2.5-7B-Instruct \
+  --sft /root/csw_test/artifacts/sft/ckpt \
+  --dpo /root/csw_test/artifacts/pref/dpo_ckpt \
+  --alpha 0.5 \
+  --out /root/csw_test/artifacts/fused/fused_lora
+```
+
+加载融合权重启动：
+
+```bash
+python llm/serve_transformers.py \
+  --model /root/csw_test/models/Qwen2.5-7B-Instruct \
+  --lora /root/csw_test/artifacts/fused/fused_lora \
+  --host 0.0.0.0 \
+  --port 9003
+```

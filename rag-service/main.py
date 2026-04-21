@@ -57,6 +57,23 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.post("/api/v1/agent/stream")
+    async def agent_stream(payload: dict) -> StreamingResponse:
+        """
+        新增：专门用于 Agent 模式的流式接口
+        """
+        from rag_service.modules.agent import stream_agent
+        question = str(payload.get("question") or "").strip()
+        
+        return StreamingResponse(
+            stream_agent(question),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     @app.get("/demo")
     def demo() -> HTMLResponse:
         html = """
@@ -84,6 +101,7 @@ def create_app() -> FastAPI:
     <h2>RAG SSE Demo</h2>
     <div class="row">
       <input id="q" value="How is the hotel location recently?" />
+      <label><input type="checkbox" id="useAgent" /> Use Agent</label>
       <button id="go">Send</button>
       <button id="stop">Stop</button>
     </div>
@@ -145,7 +163,10 @@ def create_app() -> FastAPI:
         ctrl = new AbortController();
         resetUI();
 
-        const resp = await fetch("/api/v1/chat/stream", {
+        const useAgent = $("useAgent").checked;
+        const endpoint = useAgent ? "/api/v1/agent/stream" : "/api/v1/chat/stream";
+
+        const resp = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ question: $("q").value }),
